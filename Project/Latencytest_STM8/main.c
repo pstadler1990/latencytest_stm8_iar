@@ -12,6 +12,8 @@
 #include "communication.h"
 
 static void send_buf_value(uint32_t value);
+static void getDecStr(char* str, uint8_t len, uint32_t val);
+static uint32_t len_helper(uint32_t x);
 static void delay_ms(uint32_t ms);
 static void init_system(void);
 static void init_GPIOs(void);
@@ -117,9 +119,8 @@ main(void) {
               
       case S_STATE_SEND_DATA:
         /* Send median over UART, MSB first */
-        sprintf(uartSendBuffer, "%d\r\n\0", device_state.last_median);
-        com_send(uartSendBuffer);
-        
+        send_buf_value(device_state.last_median);
+
         m_ADC_complete = 0;
         ADC1_ITConfig(ADC1_IT_EOCIE, ENABLE);
         device_state.state = S_STATE_MEASURE_CALIB;
@@ -182,9 +183,38 @@ delay_ms(uint32_t ms) {
 
 static void
 send_buf_value(uint32_t value) {
-  char sendStr[10];
-  sprintf(sendStr, "%d\n", value);
-  com_send(sendStr);
+  char str[12];
+  uint32_t len = len_helper(value);
+  getDecStr(str, len, value);
+  str[len + 1] = '\n';
+  com_send(str);
+}
+
+static uint32_t 
+len_helper(uint32_t x) {
+    if (x >= 1000000000) return 10;
+    if (x >= 100000000)  return 9;
+    if (x >= 10000000)   return 8;
+    if (x >= 1000000)    return 7;
+    if (x >= 100000)     return 6;
+    if (x >= 10000)      return 5;
+    if (x >= 1000)       return 4;
+    if (x >= 100)        return 3;
+    if (x >= 10)         return 2;
+    return 1;
+}
+
+/*  */
+// TODO: Will be removed with sprintf call if more space is available!
+static void 
+getDecStr(char* str, uint8_t len, uint32_t val) {
+  uint8_t i;
+  for(i=1; i<=len; i++) {
+    str[len-i] = (uint8_t) ((val % 10UL) + '0');
+    val/=10;
+  }
+
+  str[i-1] = '\0';
 }
 
 void
