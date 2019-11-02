@@ -8270,11 +8270,11 @@
                 <option>
                     <name>GenLibOutFormatter</name>
                     <version>0</version>
-                    <state>7</state>
+                    <state>6</state>
                 </option>
                 <option>
                     <name>GenLibOutFormatterDescription</name>
-                    <state>No specifier a or A, no specifier n, no float, no flags.</state>
+                    <state>No specifier a or A, no specifier n, no float, without multibytes</state>
                 </option>
                 <option>
                     <name>GenStackSize</name>
@@ -8347,7 +8347,7 @@
                 <option>
                     <name>IccOptStrategy</name>
                     <version>0</version>
-                    <state>1</state>
+                    <state>0</state>
                 </option>
                 <option>
                     <name>IccOptLevelSlave</name>

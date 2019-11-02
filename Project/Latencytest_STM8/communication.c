@@ -23,6 +23,6 @@ com_send(const char* str) {
     while (UART1_GetFlagStatus(UART1_FLAG_TXE) == RESET) {
       nop();
     }
-    UART1_SendData8(str[s]);
+    UART1->DR = str[s];
   }
 }

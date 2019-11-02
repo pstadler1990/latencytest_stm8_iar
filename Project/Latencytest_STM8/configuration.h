@@ -7,7 +7,7 @@
 #define F_CPU                           1600000UL
 
 /* Number of measurements the master device takes (buffer size) */
-#define	N_MEASUREMENTS	                10
+#define	N_MEASUREMENTS	                25
 /* Number of measurements to store for a single median calculation (ADC mode) */
 #define N_CALIB_MEASUREMENTS	        10
 

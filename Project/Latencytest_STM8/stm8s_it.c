@@ -43,13 +43,13 @@
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
-extern uint16_t ms_tick;
-extern uint16_t m_index;
-extern uint16_t m_time_end;
+extern uint32_t ms_tick;
+extern uint32_t m_index;
+extern uint32_t m_time_end;
 extern uint8_t m_ADC_complete;
 extern struct DevState device_state;
 extern uint16_t m_buf[N_CALIB_MEASUREMENTS];	
-extern uint16_t m_time_buf[N_MEASUREMENTS];
+extern uint32_t m_time_buf[N_MEASUREMENTS];
 
 extern uint8_t receivedCommandByte;
 /* Private functions ---------------------------------------------------------*/
@@ -143,14 +143,16 @@ INTERRUPT_HANDLER(EXTI_PORTB_IRQHandler, 4)
   if(device_state.state == S_STATE_READY) {
       m_time_end = time_now();
       m_time_buf[m_index] = m_time_end;  // result is in ms
-
-      if(m_index + 1 >= N_MEASUREMENTS) {
-              m_index = 0;
+ 
+      if(m_index + 1 > N_MEASUREMENTS) {
+        m_index = 0;
       } else {
-              m_index++;
+        m_index++;
       }
     
       device_state.state = S_STATE_IDLE;
+      
+      // GPIO_MEASURE_TRIGGER_PORT->CR2 &= (uint8_t)~GPIO_MEASURE_TRIGGER_PIN;
     
       // Inform master that the current measurement is complete 
       //GPIO_WriteHigh(GPIO_MEASURE_COMPLETE_PORT, GPIO_MEASURE_COMPLETE_PIN);

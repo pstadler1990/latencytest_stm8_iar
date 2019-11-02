@@ -11,6 +11,7 @@
 #include "measurement.h"
 #include "communication.h"
 
+static void send_buf_value(uint32_t value);
 static void delay_ms(uint32_t ms);
 static void init_system(void);
 static void init_GPIOs(void);
@@ -18,11 +19,11 @@ static void init_GPIOs(void);
 /* Timer controlled ms tick for measurement timings
    Can be used as time_now base, i.e. uint32_t time_now() { return ms_tick; },
    It might be useful to reset the value to 0 before each measurement to prevent overflow */
-__IO uint16_t ms_tick = 0;
+__IO uint32_t ms_tick = 0;
 
 /* Previous ms tick for comparison */
-__IO uint16_t m_index = 0;								/* Current measurement index */ 
-__IO uint16_t m_time_end = 0;							/* End time of current measure (single) */
+__IO uint32_t m_index = 0;								/* Current measurement index */ 
+__IO uint32_t m_time_end = 0;							/* End time of current measure (single) */
 __IO uint8_t m_ADC_complete = 0;					/* Complete flag to indicate n measurements are done */
 
 __IO uint8_t receiveBuffer[10];
@@ -31,7 +32,7 @@ __IO uint8_t receivedCommandByte = 0x01;	         /* Received command from maste
 
 /* Measurement buffers */
 uint16_t m_buf[N_CALIB_MEASUREMENTS];			/* digit buffer for calibration data */
-uint16_t m_time_buf[N_MEASUREMENTS];			/* time buffer (ms) for actual measurements */
+uint32_t m_time_buf[N_MEASUREMENTS];			/* time buffer (ms) for actual measurements */
 
 char uartSendBuffer[COM_MAX_STRLEN];
 
@@ -85,21 +86,21 @@ main(void) {
       case S_STATE_RECEIVED_CMD:
         /* Received command from master */
         switch(receivedCommandByte) {
-        case 'D':
-          device_state.state = S_STATE_CHANGE_TO_DIGITAL;
-          break;
-        case 'A':
-          device_state.state = S_STATE_CHANGE_TO_ADC;
-          break;
-        case 'M':
-          device_state.state = S_STATE_SEND_DATA_REAL;
-          break;
-        default:
-          if(device_state.previousState != S_STATE_UNDEF) {
-            device_state.state = device_state.previousState;
-          } else {
-            device_state.state = S_STATE_IDLE;
-          }
+          case 'D':
+            device_state.state = S_STATE_CHANGE_TO_DIGITAL;
+            break;
+          case 'A':
+            device_state.state = S_STATE_CHANGE_TO_ADC;
+            break;
+          case 'M':
+            device_state.state = S_STATE_SEND_DATA_REAL;
+            break;
+          default:
+            if(device_state.previousState != S_STATE_UNDEF) {
+              device_state.state = device_state.previousState;
+            } else {
+              device_state.state = S_STATE_IDLE;
+            }
         }
 
         UART1_ITConfig(UART1_IT_RXNE_OR, ENABLE);
@@ -127,8 +128,7 @@ main(void) {
       case S_STATE_SEND_DATA_REAL:
         /* Send real measurement data (time data) to master */
         for(uint16_t m = 0; m < m_index && m < N_MEASUREMENTS; m++) {
-          sprintf(uartSendBuffer, "%d\n", m_time_buf[m]);
-          com_send(uartSendBuffer);
+          send_buf_value(m_time_buf[m]);
         }
         m_index = 0;
         device_state.state = S_STATE_IDLE;
@@ -153,19 +153,20 @@ main(void) {
       case S_STATE_CHANGE_TO_DIGITAL:
         /* Prepare change to MODE_DIGITAL */
         //com_send("digi com\r\n");
-        com_send("OK\r\n");
-        
         disableInterrupts();
         init_measurement_digital();
+        
+        com_send("OK\r\n");
         break;
       
       default:
-        device_state.state = S_STATE_UNDEF;
+        // TODO:
+        nop();
     }
   }
 }
 
-uint16_t
+uint32_t
 time_now(void) {
   return ms_tick;
 }
@@ -177,6 +178,13 @@ delay_ms(uint32_t ms) {
   for (uint32_t i = 0; i < ((F_CPU / 18 / 1000UL) * ms); i++) {
     nop();
   }
+}
+
+static void
+send_buf_value(uint32_t value) {
+  char sendStr[10];
+  sprintf(sendStr, "%d\n", value);
+  com_send(sendStr);
 }
 
 void
