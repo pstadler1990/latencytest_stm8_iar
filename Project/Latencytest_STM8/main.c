@@ -186,7 +186,8 @@ send_buf_value(uint32_t value) {
   char str[12];
   uint32_t len = len_helper(value);
   getDecStr(str, len, value);
-  str[len + 1] = '\n';
+  str[len] = '\n';
+  str[len + 1] = '\0';
   com_send(str);
 }
 
@@ -214,7 +215,7 @@ getDecStr(char* str, uint8_t len, uint32_t val) {
     val/=10;
   }
 
-  str[i-1] = '\0';
+  //str[i-1] = '\0';
 }
 
 void
