@@ -36,13 +36,18 @@ __IO uint8_t receivedCommandByte = 0x01;	         /* Received command from maste
 uint16_t m_buf[N_CALIB_MEASUREMENTS];			/* digit buffer for calibration data */
 uint32_t m_time_buf[N_MEASUREMENTS];			/* time buffer (ms) for actual measurements */
 
+/* Calibration values for black and white screen */
+__IO uint16_t calibValueStoredBlack;
+__IO uint16_t calibValueStoredWhite;
+
 char uartSendBuffer[COM_MAX_STRLEN];
 
 /* Default device state */
 struct DevState device_state = {
-  .state = S_STATE_UNDEF,
-  .previousState = S_STATE_UNDEF,
-  .mode = M_MODE_ADC
+    .state = S_STATE_UNDEF,
+    .previousState = S_STATE_UNDEF,
+    .mode = M_MODE_ADC,
+    .calibMode = C_CALIBMODE_NONE,
 };
 
 
@@ -54,7 +59,7 @@ main(void) {
 	init_GPIOs();
 
 	/* Init timer1 for ADC */
-	TIM1_TimeBaseInit(16384, TIM1_COUNTERMODE_UP, 100, 0);
+	TIM1_TimeBaseInit(16384, TIM1_COUNTERMODE_UP, 10, 0);
 	TIM1_SelectOutputTrigger(TIM1_TRGOSOURCE_UPDATE);
 	TIM1_ClearFlag(TIM1_FLAG_UPDATE);
 	//TIM1_ITConfig(TIM1_IT_UPDATE, ENABLE);
@@ -97,6 +102,24 @@ main(void) {
           case 'M':
             device_state.state = S_STATE_SEND_DATA_REAL;
             break;
+          case 'C':
+            device_state.calibMode = C_CALIBMODE_NONE;
+            device_state.state = S_STATE_CHANGE_TO_ADC;
+            break;
+          case 'B':
+            m_ADC_complete = 0;
+            m_index = 0;
+            device_state.calibMode = C_CALIBMODE_B;
+            device_state.state = S_STATE_MEASURE_CALIB;
+            com_send("OK\r\n");
+            break;
+          case 'W':
+            m_ADC_complete = 0;
+            m_index = 0;
+            device_state.calibMode = C_CALIBMODE_W;
+            device_state.state = S_STATE_MEASURE_CALIB;
+            com_send("OK\r\n");
+            break;
           default:
             if(device_state.previousState != S_STATE_UNDEF) {
               device_state.state = device_state.previousState;
@@ -112,14 +135,23 @@ main(void) {
         /* Measured n values, return median over UART */
         if(m_ADC_complete) {
           qsort(m_buf, N_CALIB_MEASUREMENTS, sizeof(uint16_t), compare_func);
-          device_state.last_median = median_16(m_buf, N_CALIB_MEASUREMENTS);
-          device_state.state = S_STATE_SEND_DATA;
+          device_state.last_median = median_16(m_buf, N_CALIB_MEASUREMENTS-1);
+          device_state.state = S_STATE_STORE_DATA;
         }
         break;
-              
-      case S_STATE_SEND_DATA:
-        /* Send median over UART, MSB first */
-        send_buf_value(device_state.last_median);
+
+      case S_STATE_STORE_DATA:
+        /* Store calibration data for black or white */
+        if(device_state.calibMode == C_CALIBMODE_B) {
+            calibValueStoredBlack = device_state.last_median;
+            device_state.calibMode = C_CALIBMODE_NONE;
+            com_send("OK\r\n");
+        } else if(device_state.calibMode == C_CALIBMODE_W) {
+            calibValueStoredWhite = device_state.last_median;
+            device_state.calibMode = C_CALIBMODE_NONE;
+            com_send("OK\r\n");
+            nop();
+        }
 
         m_ADC_complete = 0;
         ADC1_ITConfig(ADC1_IT_EOCIE, ENABLE);
@@ -137,29 +169,20 @@ main(void) {
         
       case S_STATE_CHANGE_TO_ADC:
         /* Prepare change to MODE_ADC */
-        //GPIO_WriteLow(GPIO_MEASURE_COMPLETE_PORT, GPIO_MEASURE_COMPLETE_PIN);
-        GPIO_MEASURE_COMPLETE_PORT->ODR &= (uint8_t)~GPIO_MEASURE_COMPLETE_PIN;
-        
-        delay_ms(10);
-        //GPIO_WriteHigh(GPIO_MEASURE_COMPLETE_PORT, GPIO_MEASURE_COMPLETE_PIN);
-        GPIO_MEASURE_COMPLETE_PORT->ODR |= (uint8_t)GPIO_MEASURE_COMPLETE_PIN;
-        delay_ms(10);
-        //GPIO_WriteLow(GPIO_MEASURE_COMPLETE_PORT, GPIO_MEASURE_COMPLETE_PIN);
-        GPIO_MEASURE_COMPLETE_PORT->ODR &= (uint8_t)~GPIO_MEASURE_COMPLETE_PIN;
-        
         disableInterrupts();
         init_measurement_adc();
+        
+        com_send("OK\r\n");
         break;
               
       case S_STATE_CHANGE_TO_DIGITAL:
         /* Prepare change to MODE_DIGITAL */
-        //com_send("digi com\r\n");
         disableInterrupts();
         init_measurement_digital();
         
         com_send("OK\r\n");
         break;
-      
+
       default:
         // TODO:
         nop();
