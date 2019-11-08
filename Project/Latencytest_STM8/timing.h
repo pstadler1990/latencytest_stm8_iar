@@ -34,6 +34,7 @@ struct DevState {
     STATE_DEV previousState;
     CALIB_MODE calibMode;
     uint16_t last_median;
+    uint8_t isCalibrated;
 };
 
 void init_measurement_adc(void);
