@@ -9,7 +9,7 @@
 /* Number of measurements the master device takes (buffer size) */
 #define	N_MEASUREMENTS	                25
 /* Number of measurements to store for a single median calculation (ADC mode) */
-#define N_CALIB_MEASUREMENTS	        10
+#define N_CALIB_MEASUREMENTS	        50
 
 /* COM Interface */
 #define	COM_MAX_STRLEN	                ((uint32_t)50)	/* in chars */
