@@ -97,35 +97,39 @@ main(void) {
       case S_STATE_RECEIVED_CMD:
         /* Received command from master */
         switch(receivedCommandByte) {
+
           case 'D':
             device_state.state = S_STATE_CHANGE_TO_DIGITAL;
             break;
+
           case 'A':
             device_state.state = S_STATE_CHANGE_TO_ADC;
             break;
+
           case 'M':
             device_state.state = S_STATE_SEND_DATA_REAL;
             break;
+
           case 'C':
-            //ADC1->CSR &= (uint8_t)((uint16_t)~(uint16_t)ADC1_IT_EOCIE);
             device_state.isCalibrated = 0;
             device_state.calibMode = C_CALIBMODE_NONE;
             device_state.state = S_STATE_CHANGE_TO_ADC;
             break;
+
           case 'B':
             m_index = 0;
             device_state.calibMode = C_CALIBMODE_B;
             device_state.state = S_STATE_MEASURE_CALIB;
             com_send("OK\r\n");
-            //ADC1->CSR |= (uint8_t)ADC1_IT_EOCIE;
             break;
+
           case 'W':
             m_index = 0;
             device_state.calibMode = C_CALIBMODE_W;
             device_state.state = S_STATE_MEASURE_CALIB;
             com_send("OK\r\n");
-            //ADC1->CSR |= (uint8_t)ADC1_IT_EOCIE;
             break;
+
           default:
             if(device_state.previousState != S_STATE_UNDEF) {
               device_state.state = device_state.previousState;
@@ -151,10 +155,11 @@ main(void) {
         if(device_state.calibMode == C_CALIBMODE_B) {
             calibValueStoredBlack = device_state.last_median;
             device_state.calibMode = C_CALIBMODE_NONE;
+            com_send("BLACK OK\r\n");
         } else if(device_state.calibMode == C_CALIBMODE_W) {
             calibValueStoredWhite = device_state.last_median;
             device_state.calibMode = C_CALIBMODE_NONE;
-            com_send("OK\r\n");
+            com_send("CALIB OK\r\n");
             device_state.isCalibrated = 1;
         }
 
@@ -187,10 +192,6 @@ main(void) {
         
         com_send("OK\r\n");
         break;
-
-      default:
-        // TODO:
-        nop();
     }
   }
 }
