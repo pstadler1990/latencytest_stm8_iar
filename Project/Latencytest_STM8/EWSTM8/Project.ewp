@@ -8500,7 +8500,7 @@
                 <option>
                     <name>IccNoVregs</name>
                     <version>0</version>
-                    <state>1</state>
+                    <state>0</state>
                 </option>
                 <option>
                     <name>IccOptNoSizeConstraints</name>
