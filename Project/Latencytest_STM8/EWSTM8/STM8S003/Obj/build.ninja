@@ -1,0 +1,41 @@
+#Generating source browse information for project Project
+
+
+#Abbreviations
+cc = C$:\Program$ Files$ (x86)\IAR$ Systems\Embedded$ Workbench$ 8.3\common\bin\SourceIndexer.exe
+ll = C$:\Program$ Files$ (x86)\IAR$ Systems\Embedded$ Workbench$ 8.3\common\bin\PbdLink.exe
+bd = C$:\Program$ Files$ (x86)\IAR$ Systems\Embedded$ Workbench$ 8.3\common\bin\makeBrowseData.exe
+
+
+
+#Rules
+rule index
+  depfile = $out.dep
+  command = $cc -out=$out -f $in
+rule link
+  command = $ll -M $out $in
+rule browsedata
+  command = $bd $in -output  $out
+
+
+
+#Build steps
+build stm8s_adc1.pbi : index stm8s_adc1.xcl
+build stm8s_clk.pbi : index stm8s_clk.xcl
+build stm8s_exti.pbi : index stm8s_exti.xcl
+build stm8s_tim1.pbi : index stm8s_tim1.xcl
+build stm8s_tim2.pbi : index stm8s_tim2.xcl
+build stm8s_uart1.pbi : index stm8s_uart1.xcl
+build communication.pbi : index communication.xcl
+build main.pbi : index main.xcl
+build measurement.pbi : index measurement.xcl
+build stm8s_it.pbi : index stm8s_it.xcl
+build timing.pbi : index timing.xcl
+build Project_part0.pbi : link stm8s_adc1.pbi stm8s_clk.pbi stm8s_exti.pbi
+build Project_part1.pbi : link stm8s_tim1.pbi stm8s_tim2.pbi stm8s_uart1.pbi
+build Project_part2.pbi : link communication.pbi main.pbi measurement.pbi
+build Project_part3.pbi : link stm8s_it.pbi timing.pbi
+build Project.pbd : link Project_part0.pbi Project_part1.pbi Project_part2.pbi Project_part3.pbi
+build Project.pbw : browsedata Project.pbd
+
+
