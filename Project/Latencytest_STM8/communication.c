@@ -20,9 +20,11 @@ void
 com_send(const char* str) {
   uint32_t len = strlen(str);
   for(uint32_t s = 0; s < len && s < COM_MAX_STRLEN; s++) {
+    
+    UART1->DR = (unsigned char) str[s];
+
     while (UART1_GetFlagStatus(UART1_FLAG_TXE) == RESET) {
       nop();
     }
-    UART1->DR = str[s];
   }
 }
