@@ -155,6 +155,7 @@ main(void) {
         if(device_state.calibMode == C_CALIBMODE_B) {
             calibValueStoredBlack = device_state.last_median;
             device_state.calibMode = C_CALIBMODE_NONE;
+            com_send("BLACK OK\r\n");
         } else if(device_state.calibMode == C_CALIBMODE_W) {
             calibValueStoredWhite = device_state.last_median;
             device_state.calibMode = C_CALIBMODE_NONE;
