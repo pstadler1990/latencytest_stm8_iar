@@ -19,6 +19,7 @@ typedef enum {
     S_STATE_CHANGE_TO_ADC,
     S_STATE_RECEIVED_CMD,
     S_STATE_CHANGE_TO_TEST,
+    S_STATE_DONE,
 } STATE_DEV;
 
 typedef enum {

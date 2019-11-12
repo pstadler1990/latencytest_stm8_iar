@@ -40,6 +40,9 @@ struct Measurement m_time_buf[N_MEASUREMENTS];		/* time buffer (ms) for actual m
 __IO uint32_t calibValueStoredUpperThreshold;
 __IO uint32_t calibValueStoredLowerThreshold;
 
+__IO uint8_t thresholdUpperReached = 0;
+__IO uint8_t thresholdLowerReached = 0;
+
 char uartSendBuffer[COM_MAX_STRLEN];
 
 /* Default device state */
@@ -137,13 +140,24 @@ main(void) {
         break;
 
         case S_STATE_MEASURE_CALIB:
-            /* Measured n values, return median over UART */
+            /* Gets called whenever the ADC measurements are complete */
             if(m_ADC_complete) {
+                /* Adc mode, measured n values, return median over UART */
                 qsort(m_buf, N_CALIB_MEASUREMENTS, sizeof(uint16_t), compare_func);
                 device_state.last_median = median_16(m_buf, N_CALIB_MEASUREMENTS-1);
                 device_state.state = S_STATE_STORE_DATA;
             }
-        break;
+            break;
+
+        case S_STATE_DONE:
+            if(device_state.mode == M_MODE_TEST) {
+                /* Test mode, single measurement complete */
+                thresholdUpperReached = 0;
+                thresholdLowerReached = 0;
+                device_state.state = S_STATE_READY;
+                com_send("MEAS OK\r\n");
+            }
+            break;
 
         case S_STATE_STORE_DATA:
             /* Store calibration data for black or white */
@@ -197,12 +211,14 @@ main(void) {
             m_index = 0;
             // 1. Configure TIM1 to max speed of 100ns (or 10ns?) try!
             init_m_timer_test();
+            
             ms_tick = 0;
             // 2. Enable ADC
             device_state.mode = M_MODE_TEST;
-            device_state.state = S_STATE_READY;
+            device_state.state = S_STATE_MEASURE_CALIB;
             init_measurement_adc();
             // 3. Change m_complete handling for test_mode -> no value storing but checking for calibrated upper and lower tresholds
+            com_send("OK\r\n");
             break;
 
         }

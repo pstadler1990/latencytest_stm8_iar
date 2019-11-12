@@ -42,14 +42,15 @@ init_measurement_adc(void) {
 void
 trigger_measurement(void) {
     /* Enable measurement */
-    ms_tick = 0;
+    //ms_tick = 0;
 
     if(m_index + 1 < N_MEASUREMENTS) {
         m_index++;
     }
 
     m_time_buf[m_index].tTrigger = time_now();
-
+    
+    TIM1_Cmd(ENABLE);
     device_state.state = S_STATE_READY;
-    GPIO_MEASURE_COMPLETE_PORT->ODR &= (uint8_t)~GPIO_MEASURE_COMPLETE_PIN;
+    //GPIO_MEASURE_COMPLETE_PORT->ODR &= (uint8_t)~GPIO_MEASURE_COMPLETE_PIN;
 }

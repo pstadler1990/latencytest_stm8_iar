@@ -54,8 +54,8 @@ extern uint8_t receivedCommandByte;
 extern uint32_t calibValueStoredUpperThreshold;
 extern uint32_t calibValueStoredLowerThreshold;
 
-uint8_t thresholdUpperReached = 0;
-uint8_t thresholdLowerReached = 0;
+extern uint8_t thresholdUpperReached;
+extern uint8_t thresholdLowerReached;
 
 /* Private functions ---------------------------------------------------------*/
 /* Public functions ----------------------------------------------------------*/
@@ -499,17 +499,19 @@ INTERRUPT_HANDLER(ADC1_IRQHandler, 22) {
         /* Actual test mode */
         uint16_t value = ADC1_GetConversionValue();
 
-        if(!thresholdUpperReached && !thresholdLowerReached) {
+        if(!thresholdUpperReached || !thresholdLowerReached) {
             
-            if(value <= calibValueStoredUpperThreshold) {
+            if(!thresholdUpperReached && (value > calibValueStoredLowerThreshold && value<= calibValueStoredUpperThreshold)) {
                 /* Pixels starting to switch from black to white */
                 m_time_buf[m_index].tBlack = time_now();
                 thresholdUpperReached = 1;
             } 
-            if(value <= calibValueStoredLowerThreshold) {
+            if(!thresholdLowerReached && value <= calibValueStoredLowerThreshold) {
                 /* Pixels are fully white */
                 m_time_buf[m_index].tWhite = time_now();
                 thresholdLowerReached = 1;
+                TIM1_Cmd(DISABLE);
+                device_state.state = S_STATE_DONE;
             }
         }
     }
