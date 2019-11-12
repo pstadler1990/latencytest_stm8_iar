@@ -52,5 +52,4 @@ trigger_measurement(void) {
     
     TIM1_Cmd(ENABLE);
     device_state.state = S_STATE_READY;
-    //GPIO_MEASURE_COMPLETE_PORT->ODR &= (uint8_t)~GPIO_MEASURE_COMPLETE_PIN;
 }

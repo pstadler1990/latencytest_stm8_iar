@@ -15,6 +15,7 @@ init_com_interface(uint32_t baudrate) {
 			   
   /* Enable receive interrupt */
   UART2_ITConfig(UART2_IT_RXNE_OR, ENABLE);
+  UART2_ITConfig(UART2_IT_RXNE_OR, ENABLE);
 
   UART2_Cmd(ENABLE);
 }

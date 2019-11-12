@@ -99,6 +99,7 @@ main(void) {
             case 'R':
                 /* Request all measurement values */
                 device_state.state = S_STATE_SEND_DATA_REAL;
+                com_send("OK\r\n");
                 break;
 
             case 'C':
@@ -183,13 +184,17 @@ main(void) {
 
         case S_STATE_SEND_DATA_REAL:
             /* Send real measurement data (time data) to master */
-            //for(uint16_t m = 0; m < m_index && m < N_MEASUREMENTS; m++) {
-            //    send_buf_value(m_time_buf[m]);
-            //}
-
-            // TODO: Use mini uart proctol, i.e. { t1 t2 t3 } to send values per triple
+            for(uint16_t m = 0; m < m_index && m < N_MEASUREMENTS; m++) {
+                com_send("{\r\n");
+                send_buf_value(m_time_buf[m].tTrigger);
+                send_buf_value(m_time_buf[m].tBlack);
+                send_buf_value(m_time_buf[m].tWhite);
+                com_send("}\r\n");
+            }
             m_index = 0;
-            // device_state.state = S_STATE_IDLE;
+            device_state.mode = M_MODE_ADC;
+            device_state.state = S_STATE_IDLE;
+            UART2_ITConfig(UART2_IT_RXNE_OR, ENABLE);
             break;
 
         case S_STATE_CHANGE_TO_ADC:
@@ -221,6 +226,9 @@ main(void) {
             com_send("OK\r\n");
             break;
 
+        default:
+            nop();
+
         }
     }
 }
@@ -242,7 +250,7 @@ delay_ms(uint32_t ms) {
 static void
 send_buf_value(uint32_t value) {
   char str[12];
-  sprintf(str, "%lu\n", value);
+  sprintf(str, "%lu\r\n", value);
   com_send(str);
 }
 

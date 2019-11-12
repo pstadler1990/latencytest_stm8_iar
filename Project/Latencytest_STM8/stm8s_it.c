@@ -432,6 +432,14 @@ INTERRUPT_HANDLER(UART2_RX_IRQHandler, 21)
             receivedCommandByte = byte;
         }
     }
+    else {
+        if(UART2_GetFlagStatus(UART2_FLAG_OR_LHE) == SET) {
+            UART2_ReceiveData8();
+        }
+        if(UART2_GetFlagStatus(UART2_FLAG_FE) == SET) {
+            UART2_ReceiveData8();  
+        }
+    }
 }
 #endif /* (STM8S105) || (STM8AF626x) */
 
@@ -498,17 +506,18 @@ INTERRUPT_HANDLER(ADC1_IRQHandler, 22) {
     } else if(device_state.mode == M_MODE_TEST) {
         /* Actual test mode */
         uint16_t value = ADC1_GetConversionValue();
+        uint32_t time = time_now();
 
         if(!thresholdUpperReached || !thresholdLowerReached) {
             
-            if(!thresholdUpperReached && (value > calibValueStoredLowerThreshold && value<= calibValueStoredUpperThreshold)) {
+            if(!thresholdUpperReached && (value > calibValueStoredLowerThreshold && value <= calibValueStoredUpperThreshold)) {
                 /* Pixels starting to switch from black to white */
-                m_time_buf[m_index].tBlack = time_now();
+                m_time_buf[m_index].tBlack = time;
                 thresholdUpperReached = 1;
             } 
             if(!thresholdLowerReached && value <= calibValueStoredLowerThreshold) {
                 /* Pixels are fully white */
-                m_time_buf[m_index].tWhite = time_now();
+                m_time_buf[m_index].tWhite = time;
                 thresholdLowerReached = 1;
                 TIM1_Cmd(DISABLE);
                 device_state.state = S_STATE_DONE;
