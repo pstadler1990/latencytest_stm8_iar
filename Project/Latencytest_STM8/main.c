@@ -12,8 +12,6 @@
 #include "communication.h"
 
 static void send_buf_value(uint32_t value);
-static void getDecStr(char* str, uint8_t len, uint32_t val);
-static uint32_t len_helper(uint32_t x);
 static void delay_ms(uint32_t ms);
 static void init_system(void);
 static void init_GPIOs(void);
@@ -36,12 +34,11 @@ __IO uint8_t receivedCommandByte = 0x01;	         /* Received command from maste
 
 /* Measurement buffers */
 uint16_t m_buf[N_CALIB_MEASUREMENTS];			/* digit buffer for calibration data */
-uint32_t m_time_buf[N_MEASUREMENTS];			/* time buffer (ms) for actual measurements */
-uint32_t m_time_buf_sw[N_MEASUREMENTS];	                /* time buffer (ms) for actual measurements switching times */
+struct Measurement m_time_buf[N_MEASUREMENTS];		/* time buffer (ms) for actual measurements */
 
 /* Calibration values for black and white screen */
-__IO uint16_t calibValueStoredUpperThreshold;
-__IO uint16_t calibValueStoredLowerThreshold;
+__IO uint32_t calibValueStoredUpperThreshold;
+__IO uint32_t calibValueStoredLowerThreshold;
 
 char uartSendBuffer[COM_MAX_STRLEN];
 
@@ -96,7 +93,7 @@ main(void) {
             /* Received command from master */
             switch(receivedCommandByte) {
 
-            case 'M':
+            case 'R':
                 /* Request all measurement values */
                 device_state.state = S_STATE_SEND_DATA_REAL;
                 break;
@@ -136,7 +133,7 @@ main(void) {
                 }
             }
 
-            UART1_ITConfig(UART1_IT_RXNE_OR, ENABLE);
+            UART2_ITConfig(UART2_IT_RXNE_OR, ENABLE);
         break;
 
         case S_STATE_MEASURE_CALIB:
@@ -152,13 +149,13 @@ main(void) {
             /* Store calibration data for black or white */
             if(device_state.calibMode == C_CALIBMODE_B) {
                 //calibValueStoredUpperThreshold = calibValueStoredBlack + (0.1 * calibValueStoredBlack);
-                calibValueStoredUpperThreshold = device_state.last_median + THRESHOLD_DIGITS;
+                calibValueStoredUpperThreshold = (uint32_t)device_state.last_median - THRESHOLD_DIGITS;
 
                 device_state.calibMode = C_CALIBMODE_NONE;
                 com_send("BLACK OK\r\n");
             } else if(device_state.calibMode == C_CALIBMODE_W) {
                 //calibValueStoredLowerThreshold = calibValueStoredWhite + (0.1 * calibValueStoredWhite);
-                calibValueStoredLowerThreshold = device_state.last_median + THRESHOLD_DIGITS;
+                calibValueStoredLowerThreshold = (uint32_t)device_state.last_median + THRESHOLD_DIGITS;
 
                 device_state.calibMode = C_CALIBMODE_NONE;
                 com_send("CALIB OK\r\n");
@@ -172,16 +169,22 @@ main(void) {
 
         case S_STATE_SEND_DATA_REAL:
             /* Send real measurement data (time data) to master */
-            for(uint16_t m = 0; m < m_index && m < N_MEASUREMENTS; m++) {
-                send_buf_value(m_time_buf[m]);
-            }
+            //for(uint16_t m = 0; m < m_index && m < N_MEASUREMENTS; m++) {
+            //    send_buf_value(m_time_buf[m]);
+            //}
+
+            // TODO: Use mini uart proctol, i.e. { t1 t2 t3 } to send values per triple
             m_index = 0;
-            device_state.state = S_STATE_IDLE;
+            // device_state.state = S_STATE_IDLE;
             break;
 
         case S_STATE_CHANGE_TO_ADC:
             /* Prepare change to MODE_ADC */
             disableInterrupts();
+
+            init_m_timer_calib();
+            TIM1_Cmd(ENABLE);
+
             device_state.mode = M_MODE_ADC;
             device_state.state = S_STATE_MEASURE_CALIB;
             init_measurement_adc();
@@ -223,38 +226,8 @@ delay_ms(uint32_t ms) {
 static void
 send_buf_value(uint32_t value) {
   char str[12];
-  uint32_t len = len_helper(value);
-  getDecStr(str, len, value);
-  str[len] = '\n';
-  str[len + 1] = '\0';
+  sprintf(str, "%lu\n", value);
   com_send(str);
-}
-
-static uint32_t 
-len_helper(uint32_t x) {
-    if (x >= 1000000000) return 10;
-    if (x >= 100000000)  return 9;
-    if (x >= 10000000)   return 8;
-    if (x >= 1000000)    return 7;
-    if (x >= 100000)     return 6;
-    if (x >= 10000)      return 5;
-    if (x >= 1000)       return 4;
-    if (x >= 100)        return 3;
-    if (x >= 10)         return 2;
-    return 1;
-}
-
-/*  */
-// TODO: Will be removed with sprintf call if more space is available!
-static void 
-getDecStr(char* str, uint8_t len, uint32_t val) {
-  uint8_t i;
-  for(i=1; i<=len; i++) {
-    str[len-i] = (uint8_t) ((val % 10UL) + '0');
-    val/=10;
-  }
-
-  //str[i-1] = '\0';
 }
 
 void

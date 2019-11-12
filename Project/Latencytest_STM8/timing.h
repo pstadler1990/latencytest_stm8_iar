@@ -36,6 +36,12 @@ struct DevState {
     uint8_t isCalibrated;
 };
 
+struct Measurement {
+    uint32_t tTrigger;
+    uint32_t tBlack;
+    uint32_t tWhite;
+};
+
 void init_measurement_adc(void);
 void trigger_measurement(void);
 #endif

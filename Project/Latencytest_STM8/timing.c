@@ -6,7 +6,7 @@
 extern __IO uint32_t ms_tick;
 extern __IO uint32_t m_index;
 extern struct DevState device_state;
-
+extern struct Measurement m_time_buf[N_MEASUREMENTS];
 
 /* There are two measurement modes:
 	 - ADC
@@ -43,9 +43,13 @@ void
 trigger_measurement(void) {
     /* Enable measurement */
     ms_tick = 0;
-    device_state.state = S_STATE_READY;
 
-    // TODO: Store timestamp t1 (time_now())
-    
+    if(m_index + 1 < N_MEASUREMENTS) {
+        m_index++;
+    }
+
+    m_time_buf[m_index].tTrigger = time_now();
+
+    device_state.state = S_STATE_READY;
     GPIO_MEASURE_COMPLETE_PORT->ODR &= (uint8_t)~GPIO_MEASURE_COMPLETE_PIN;
 }
