@@ -19,6 +19,7 @@ typedef enum {
     S_STATE_CHANGE_TO_ADC,
     S_STATE_RECEIVED_CMD,
     S_STATE_CHANGE_TO_TEST,
+    S_STATE_DONE,
 } STATE_DEV;
 
 typedef enum {
@@ -34,6 +35,12 @@ struct DevState {
     CALIB_MODE calibMode;
     uint16_t last_median;
     uint8_t isCalibrated;
+};
+
+struct Measurement {
+    uint32_t tTrigger;
+    uint32_t tBlack;
+    uint32_t tWhite;
 };
 
 void init_measurement_adc(void);

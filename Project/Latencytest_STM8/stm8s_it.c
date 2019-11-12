@@ -49,17 +49,13 @@ extern uint32_t m_time_end;
 extern uint8_t m_ADC_complete;
 extern struct DevState device_state;
 extern uint16_t m_buf[N_CALIB_MEASUREMENTS];	
-extern uint32_t m_time_buf[N_MEASUREMENTS];
-extern uint32_t m_time_buf_sw[N_MEASUREMENTS];
+extern struct Measurement m_time_buf[N_MEASUREMENTS];
 extern uint8_t receivedCommandByte;
-extern uint16_t calibValueStoredUpperThreshold;
-extern uint16_t calibValueStoredLowerThreshold;
+extern uint32_t calibValueStoredUpperThreshold;
+extern uint32_t calibValueStoredLowerThreshold;
 
-uint32_t pixelTimeT1 = 0;
-uint32_t pixelTimeT2 = 0;
-
-uint8_t thresholdUpperReached = 0;
-uint8_t thresholdLowerReached = 0;
+extern uint8_t thresholdUpperReached;
+extern uint8_t thresholdLowerReached;
 
 /* Private functions ---------------------------------------------------------*/
 /* Public functions ----------------------------------------------------------*/
@@ -148,25 +144,7 @@ INTERRUPT_HANDLER(EXTI_PORTA_IRQHandler, 3)
   */
 INTERRUPT_HANDLER(EXTI_PORTB_IRQHandler, 4)
 {
-  /* EXTI PB0 (photodiode measurement circuit detected WHITE screen (falling edge) */
-  if(device_state.state == S_STATE_READY) {
-      m_time_end = time_now();
-      m_time_buf[m_index] = m_time_end;  // result is in ms
- 
-      if(m_index + 1 > N_MEASUREMENTS) {
-        m_index = 0;
-      } else {
-        m_index++;
-      }
-    
-      device_state.state = S_STATE_IDLE;
-      
-      // GPIO_MEASURE_TRIGGER_PORT->CR2 &= (uint8_t)~GPIO_MEASURE_TRIGGER_PIN;
-    
-      // Inform master that the current measurement is complete 
-      //GPIO_WriteHigh(GPIO_MEASURE_COMPLETE_PORT, GPIO_MEASURE_COMPLETE_PIN);
-      GPIO_MEASURE_COMPLETE_PORT->ODR |= (uint8_t)GPIO_MEASURE_COMPLETE_PIN;
-    }
+    // Removed
 }
 
 /**
@@ -177,9 +155,9 @@ INTERRUPT_HANDLER(EXTI_PORTB_IRQHandler, 4)
 INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5)
 {
   /* EXTI PC2 (trigger IN from master) starts measurement (if device is in MODE_TEST, else discard) */
-  if(device_state.mode == M_MODE_TEST) {
-      trigger_measurement();
-  }
+    if(device_state.mode == M_MODE_TEST) {
+        trigger_measurement();
+    }
 }
 
 /**
@@ -381,25 +359,6 @@ INTERRUPT_HANDLER(TIM1_CAP_COM_IRQHandler, 12)
   */
  INTERRUPT_HANDLER(UART1_RX_IRQHandler, 18)
  {
-    /* Received data from master */
-    if(UART1_GetFlagStatus(UART1_FLAG_RXNE) == SET) {
-      uint8_t byte = UART1_ReceiveData8();
-      if(byte == '\n') {
-        device_state.previousState = device_state.state;
-        device_state.state = S_STATE_RECEIVED_CMD;
-      
-        UART1_ITConfig(UART1_IT_RXNE_OR, DISABLE);
-      } else {
-          receivedCommandByte = byte;
-      }
-    } else {
-        if(UART1_GetFlagStatus(UART1_FLAG_OR) == SET) {
-          UART1_ReceiveData8();
-        }
-        if(UART1_GetFlagStatus(UART1_FLAG_FE) == SET) {
-          UART1_ReceiveData8();  
-        }
-    }
  }
 #endif /* (STM8S208) || (STM8S207) || (STM8S103) || (STM8S001) || (STM8S903) || (STM8AF62Ax) || (STM8AF52Ax) */
 
@@ -459,12 +418,29 @@ INTERRUPT_HANDLER(I2C_IRQHandler, 19)
   * @param  None
   * @retval None
   */
- INTERRUPT_HANDLER(UART2_RX_IRQHandler, 21)
- {
-    /* In order to detect unexpected events during development,
-       it is recommended to set a breakpoint on the following instruction.
-    */
- }
+INTERRUPT_HANDLER(UART2_RX_IRQHandler, 21)
+{
+    /* Received data from master */
+    if(UART2_GetFlagStatus(UART2_FLAG_RXNE) == SET) {
+        uint8_t byte = UART2_ReceiveData8();
+        if(byte == '\n') {
+            device_state.previousState = device_state.state;
+            device_state.state = S_STATE_RECEIVED_CMD;
+
+            UART2_ITConfig(UART2_IT_RXNE_OR, DISABLE);
+        } else {
+            receivedCommandByte = byte;
+        }
+    }
+    else {
+        if(UART2_GetFlagStatus(UART2_FLAG_OR_LHE) == SET) {
+            UART2_ReceiveData8();
+        }
+        if(UART2_GetFlagStatus(UART2_FLAG_FE) == SET) {
+            UART2_ReceiveData8();  
+        }
+    }
+}
 #endif /* (STM8S105) || (STM8AF626x) */
 
 #if defined(STM8S207) || defined(STM8S007) || defined(STM8S208) || defined (STM8AF52Ax) || defined (STM8AF62Ax)
@@ -530,23 +506,21 @@ INTERRUPT_HANDLER(ADC1_IRQHandler, 22) {
     } else if(device_state.mode == M_MODE_TEST) {
         /* Actual test mode */
         uint16_t value = ADC1_GetConversionValue();
+        uint32_t time = time_now();
 
-        if(!thresholdUpperReached && !thresholdLowerReached) {
+        if(!thresholdUpperReached || !thresholdLowerReached) {
             
-            if(value <= calibValueStoredUpperThreshold) {
+            if(!thresholdUpperReached && (value > calibValueStoredLowerThreshold && value <= calibValueStoredUpperThreshold)) {
                 /* Pixels starting to switch from black to white */
-                pixelTimeT1 = time_now();
+                m_time_buf[m_index].tBlack = time;
                 thresholdUpperReached = 1;
             } 
-            if(value <= calibValueStoredLowerThreshold) {
+            if(!thresholdLowerReached && value <= calibValueStoredLowerThreshold) {
                 /* Pixels are fully white */
-                pixelTimeT2 = time_now();
-                m_time_buf[m_index] = pixelTimeT2 - pixelTimeT1;
+                m_time_buf[m_index].tWhite = time;
                 thresholdLowerReached = 1;
-
-                if(m_index + 1 < N_MEASUREMENTS) {
-                    m_index++;
-                }
+                TIM1_Cmd(DISABLE);
+                device_state.state = S_STATE_DONE;
             }
         }
     }

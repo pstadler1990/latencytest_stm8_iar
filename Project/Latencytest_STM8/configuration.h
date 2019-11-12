@@ -10,9 +10,9 @@
 #define	N_MEASUREMENTS	                ((uint8_t)100)
 
 /* Number of measurements to store for a single median calculation (ADC mode) */
-#define N_CALIB_MEASUREMENTS	        ((uint8_t)25)
+#define N_CALIB_MEASUREMENTS	        ((uint8_t)50)
 
-#define THRESHOLD_DIGITS                ((uint16_t)1000)
+#define THRESHOLD_DIGITS                ((uint32_t)5000)
 
 /* COM Interface */
 #define	COM_MAX_STRLEN	                ((uint32_t)35)	/* in chars */
