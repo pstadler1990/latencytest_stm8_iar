@@ -6,7 +6,7 @@
 
 typedef enum {
     M_MODE_ADC,
-    M_MODE_DIGITAL
+    M_MODE_TEST,
 } MEAS_MODE;
 
 typedef enum {
@@ -17,8 +17,8 @@ typedef enum {
     S_STATE_SEND_DATA_REAL,
     S_STATE_STORE_DATA,
     S_STATE_CHANGE_TO_ADC,
-    S_STATE_CHANGE_TO_DIGITAL,
     S_STATE_RECEIVED_CMD,
+    S_STATE_CHANGE_TO_TEST,
 } STATE_DEV;
 
 typedef enum {
@@ -37,6 +37,5 @@ struct DevState {
 };
 
 void init_measurement_adc(void);
-void init_measurement_digital(void);
 void trigger_measurement(void);
 #endif

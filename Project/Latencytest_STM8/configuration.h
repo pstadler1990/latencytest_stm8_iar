@@ -7,9 +7,12 @@
 #define F_CPU                           1600000UL
 
 /* Number of measurements the master device takes (buffer size) */
-#define	N_MEASUREMENTS	                40
+#define	N_MEASUREMENTS	                ((uint8_t)100)
+
 /* Number of measurements to store for a single median calculation (ADC mode) */
-#define N_CALIB_MEASUREMENTS	        20
+#define N_CALIB_MEASUREMENTS	        ((uint8_t)25)
+
+#define THRESHOLD_DIGITS                ((uint16_t)1000)
 
 /* COM Interface */
 #define	COM_MAX_STRLEN	                ((uint32_t)35)	/* in chars */

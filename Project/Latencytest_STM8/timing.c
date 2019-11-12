@@ -34,36 +34,6 @@ init_measurement_adc(void) {
   /* EOC Interrupt */
   ADC1_ITConfig(ADC1_IT_EOCIE, ENABLE);
 
-  device_state.mode = M_MODE_ADC;
-  device_state.state = S_STATE_MEASURE_CALIB;
-  m_index = 0;
-
-  enableInterrupts();
-}
-
-void
-init_measurement_digital(void) {
-  /* Initialize digital measuring of the attached photodiode circuit */
-  ADC1_DeInit();
-  //GPIO_Init(GPIO_MEASURE_IN_PORT, GPIO_MEASURE_IN_PIN, GPIO_MODE_IN_FL_IT);
-  /* Input, floating, external interrupt */
-  GPIO_MEASURE_IN_PORT->DDR &= (uint8_t)~GPIO_MEASURE_IN_PIN;
-  GPIO_MEASURE_IN_PORT->CR1 &= (uint8_t)~GPIO_MEASURE_IN_PIN;
-  GPIO_MEASURE_IN_PORT->CR2 |= (uint8_t)GPIO_MEASURE_IN_PIN;
-
-  /* Interrupt */
-  EXTI_SetExtIntSensitivity(EXTI_MEASURE_IN_PORT, EXTI_SENSITIVITY_FALL_ONLY);
-
-  //GPIO_Init(GPIO_MEASURE_TRIGGER_PORT, GPIO_MEASURE_TRIGGER_PIN, GPIO_MODE_IN_FL_IT);
-  /* Input, floating, external interrupt */
-  GPIO_MEASURE_TRIGGER_PORT->DDR &= (uint8_t)~GPIO_MEASURE_TRIGGER_PIN;
-  GPIO_MEASURE_TRIGGER_PORT->CR1 &= (uint8_t)~GPIO_MEASURE_TRIGGER_PIN;
-  GPIO_MEASURE_TRIGGER_PORT->CR2 |= (uint8_t)GPIO_MEASURE_TRIGGER_PIN;
-  
-  EXTI_SetExtIntSensitivity(EXTI_MEASURE_TRIGGER_PORT, EXTI_SENSITIVITY_RISE_ONLY);
-
-  device_state.mode = M_MODE_DIGITAL;
-  device_state.state = S_STATE_IDLE;
   m_index = 0;
 
   enableInterrupts();
@@ -74,9 +44,8 @@ trigger_measurement(void) {
     /* Enable measurement */
     ms_tick = 0;
     device_state.state = S_STATE_READY;
+
+    // TODO: Store timestamp t1 (time_now())
     
-    //GPIO_WriteLow(GPIO_MEASURE_COMPLETE_PORT, GPIO_MEASURE_COMPLETE_PIN);
     GPIO_MEASURE_COMPLETE_PORT->ODR &= (uint8_t)~GPIO_MEASURE_COMPLETE_PIN;
-    
-    //GPIO_MEASURE_TRIGGER_PORT->CR2 |= (uint8_t)GPIO_MEASURE_TRIGGER_PIN;
 }
