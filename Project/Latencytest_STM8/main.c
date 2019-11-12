@@ -17,6 +17,8 @@ static uint32_t len_helper(uint32_t x);
 static void delay_ms(uint32_t ms);
 static void init_system(void);
 static void init_GPIOs(void);
+static void init_m_timer_calib(void);
+static void init_m_timer_test(void);
 
 /* Timer controlled ms tick for measurement timings
    Can be used as time_now base, i.e. uint32_t time_now() { return ms_tick; },
@@ -24,9 +26,9 @@ static void init_GPIOs(void);
 __IO uint32_t ms_tick = 0;
 
 /* Previous ms tick for comparison */
-__IO uint32_t m_index = 0;								/* Current measurement index */ 
-__IO uint32_t m_time_end = 0;							/* End time of current measure (single) */
-__IO uint8_t m_ADC_complete = 0;					/* Complete flag to indicate n measurements are done */
+__IO uint32_t m_index = 0;				/* Current measurement index */ 
+__IO uint32_t m_time_end = 0;				/* End time of current measure (single) */
+__IO uint8_t m_ADC_complete = 0;		        /* Complete flag to indicate n measurements are done */
 
 __IO uint8_t receiveBuffer[10];
 __IO uint8_t receivePtr = 0;
@@ -35,10 +37,11 @@ __IO uint8_t receivedCommandByte = 0x01;	         /* Received command from maste
 /* Measurement buffers */
 uint16_t m_buf[N_CALIB_MEASUREMENTS];			/* digit buffer for calibration data */
 uint32_t m_time_buf[N_MEASUREMENTS];			/* time buffer (ms) for actual measurements */
+uint32_t m_time_buf_sw[N_MEASUREMENTS];	                /* time buffer (ms) for actual measurements switching times */
 
 /* Calibration values for black and white screen */
-__IO uint16_t calibValueStoredBlack;
-__IO uint16_t calibValueStoredWhite;
+__IO uint16_t calibValueStoredUpperThreshold;
+__IO uint16_t calibValueStoredLowerThreshold;
 
 char uartSendBuffer[COM_MAX_STRLEN];
 
@@ -54,146 +57,153 @@ struct DevState device_state = {
 
 void
 main(void) {
-	//init_system();		// TODO: Check, if external HSE is attached, else run on internal full speed!
-	CLK_HSIPrescalerConfig(CLK_PRESCALER_HSIDIV1);	// TODO: Remove (or put in init_system())
-	CLK_SYSCLKConfig(CLK_PRESCALER_HSIDIV1);
-	init_GPIOs();
+    //init_system();		// TODO: Check, if external HSE is attached, else run on internal full speed!
+    CLK_HSIPrescalerConfig(CLK_PRESCALER_HSIDIV1);	// TODO: Remove (or put in init_system())
+    CLK_SYSCLKConfig(CLK_PRESCALER_HSIDIV1);
+    init_GPIOs();
 
-	/* Init timer1 for ADC */
-        // 16000000 / 1280 = 12500
-        // 1 / 12500 = 0.00008
-        // 0.00008 * 1250 = 0.1 (=100ms)
-	TIM1_TimeBaseInit(1280/*16384*/, TIM1_COUNTERMODE_UP, /*12*/12, 0);
-	TIM1_SelectOutputTrigger(TIM1_TRGOSOURCE_UPDATE);
-	TIM1_ClearFlag(TIM1_FLAG_UPDATE);
-	//TIM1_ITConfig(TIM1_IT_UPDATE, ENABLE);
-	
-	/* Init timer4 (millisecs counter for measurement timing) */
-	// TIM4 master frequency is 16 MHz
-	// To generate a tick every 1ms:
-	// 16000000 / 128 = 1250000
-	// 1 / 125000 = 0.000008
-	// 0.000008 * 125 = 0.001 (= 1ms)
-	TIM2_TimeBaseInit(TIM2_PRESCALER_128, (125 - 1));	// 1ms
-	TIM2_ClearFlag(TIM2_FLAG_UPDATE);
-	TIM2_ITConfig(TIM2_IT_UPDATE, ENABLE);
+    init_m_timer_calib();
 
-	/* Initialize communication over UART */
-	init_com_interface(COM_BAUDRATE);
-	
-	/* Device always starts with ADC mode */
-	init_measurement_adc();
-	
-	TIM2_Cmd(ENABLE);
-	TIM1_Cmd(ENABLE);
-	enableInterrupts();
+    /* Init timer4 (millisecs counter for measurement timing) */
+    // TIM4 master frequency is 16 MHz
+    // To generate a tick every 1ms:
+    // 16000000 / 128 = 1250000
+    // 1 / 125000 = 0.000008
+    // 0.000008 * 125 = 0.001 (= 1ms)
+    TIM2_TimeBaseInit(TIM2_PRESCALER_128, (125 - 1));	// 1ms
+    TIM2_ClearFlag(TIM2_FLAG_UPDATE);
+    TIM2_ITConfig(TIM2_IT_UPDATE, ENABLE);
 
-  while(1) {
+    /* Initialize communication over UART */
+    init_com_interface(COM_BAUDRATE);
 
-    delay_ms(100);
+    /* Device always starts with ADC mode */
+    device_state.mode = M_MODE_ADC;
+    device_state.state = S_STATE_MEASURE_CALIB;
+    init_measurement_adc();
 
-    switch(device_state.state) {
+    TIM2_Cmd(ENABLE);
+    TIM1_Cmd(ENABLE);
+    enableInterrupts();
 
-      case S_STATE_RECEIVED_CMD:
-        /* Received command from master */
-        switch(receivedCommandByte) {
+    while(1) {
 
-          case 'D':
-            device_state.state = S_STATE_CHANGE_TO_DIGITAL;
-            break;
+        delay_ms(100);
 
-          case 'A':
-            device_state.state = S_STATE_CHANGE_TO_ADC;
-            break;
+        switch(device_state.state) {
 
-          case 'M':
-            device_state.state = S_STATE_SEND_DATA_REAL;
-            break;
+        case S_STATE_RECEIVED_CMD:
+            /* Received command from master */
+            switch(receivedCommandByte) {
 
-          case 'C':
-            device_state.isCalibrated = 0;
-            device_state.calibMode = C_CALIBMODE_NONE;
-            device_state.state = S_STATE_CHANGE_TO_ADC;
-            break;
+            case 'M':
+                /* Request all measurement values */
+                device_state.state = S_STATE_SEND_DATA_REAL;
+                break;
 
-          case 'B':
-            m_index = 0;
-            device_state.calibMode = C_CALIBMODE_B;
-            device_state.state = S_STATE_MEASURE_CALIB;
-            com_send("OK\r\n");
-            break;
+            case 'C':
+                /* Enable calibration mode */
+                device_state.isCalibrated = 0;
+                device_state.calibMode = C_CALIBMODE_NONE;
+                device_state.state = S_STATE_CHANGE_TO_ADC;
+                break;
 
-          case 'W':
-            m_index = 0;
-            device_state.calibMode = C_CALIBMODE_W;
-            device_state.state = S_STATE_MEASURE_CALIB;
-            com_send("OK\r\n");
-            break;
+            case 'B':
+                /* Calibration mode: enabled black screen */
+                m_index = 0;
+                device_state.calibMode = C_CALIBMODE_B;
+                device_state.state = S_STATE_MEASURE_CALIB;
+                com_send("OK\r\n");
+                break;
 
-          default:
-            if(device_state.previousState != S_STATE_UNDEF) {
-              device_state.state = device_state.previousState;
-            } else {
-              device_state.state = S_STATE_IDLE;
+            case 'W':
+                /* Calibration mode: enabled white screen */
+                m_index = 0;
+                device_state.calibMode = C_CALIBMODE_W;
+                device_state.state = S_STATE_MEASURE_CALIB;
+                com_send("OK\r\n");
+                break;
+
+            case 'T':
+                device_state.state = S_STATE_CHANGE_TO_TEST;
+                break;
+
+            default:
+                if(device_state.previousState != S_STATE_UNDEF) {
+                    device_state.state = device_state.previousState;
+                } else {
+                    device_state.state = S_STATE_IDLE;
+                }
             }
-        }
 
-        UART1_ITConfig(UART1_IT_RXNE_OR, ENABLE);
-        break;
-
-      case S_STATE_MEASURE_CALIB:
-        /* Measured n values, return median over UART */
-        if(m_ADC_complete) {
-          qsort(m_buf, N_CALIB_MEASUREMENTS, sizeof(uint16_t), compare_func);
-          device_state.last_median = median_16(m_buf, N_CALIB_MEASUREMENTS-1);
-          device_state.state = S_STATE_STORE_DATA;
-        }
+            UART1_ITConfig(UART1_IT_RXNE_OR, ENABLE);
         break;
 
-      case S_STATE_STORE_DATA:
-        /* Store calibration data for black or white */
-        if(device_state.calibMode == C_CALIBMODE_B) {
-            calibValueStoredBlack = device_state.last_median;
-            device_state.calibMode = C_CALIBMODE_NONE;
-            com_send("BLACK OK\r\n");
-        } else if(device_state.calibMode == C_CALIBMODE_W) {
-            calibValueStoredWhite = device_state.last_median;
-            device_state.calibMode = C_CALIBMODE_NONE;
-            com_send("CALIB OK\r\n");
-            device_state.isCalibrated = 1;
-        }
+        case S_STATE_MEASURE_CALIB:
+            /* Measured n values, return median over UART */
+            if(m_ADC_complete) {
+                qsort(m_buf, N_CALIB_MEASUREMENTS, sizeof(uint16_t), compare_func);
+                device_state.last_median = median_16(m_buf, N_CALIB_MEASUREMENTS-1);
+                device_state.state = S_STATE_STORE_DATA;
+            }
+        break;
 
-        m_ADC_complete = 0;
-        ADC1_ITConfig(ADC1_IT_EOCIE, ENABLE);
-        device_state.state = S_STATE_MEASURE_CALIB;
-        break;
-              
-      case S_STATE_SEND_DATA_REAL:
-        /* Send real measurement data (time data) to master */
-        for(uint16_t m = 0; m < m_index && m < N_MEASUREMENTS; m++) {
-          send_buf_value(m_time_buf[m]);
+        case S_STATE_STORE_DATA:
+            /* Store calibration data for black or white */
+            if(device_state.calibMode == C_CALIBMODE_B) {
+                //calibValueStoredUpperThreshold = calibValueStoredBlack + (0.1 * calibValueStoredBlack);
+                calibValueStoredUpperThreshold = device_state.last_median + THRESHOLD_DIGITS;
+
+                device_state.calibMode = C_CALIBMODE_NONE;
+                com_send("BLACK OK\r\n");
+            } else if(device_state.calibMode == C_CALIBMODE_W) {
+                //calibValueStoredLowerThreshold = calibValueStoredWhite + (0.1 * calibValueStoredWhite);
+                calibValueStoredLowerThreshold = device_state.last_median + THRESHOLD_DIGITS;
+
+                device_state.calibMode = C_CALIBMODE_NONE;
+                com_send("CALIB OK\r\n");
+                device_state.isCalibrated = 1;
+            }
+
+            m_ADC_complete = 0;
+            ADC1_ITConfig(ADC1_IT_EOCIE, ENABLE);
+            device_state.state = S_STATE_MEASURE_CALIB;
+            break;
+
+        case S_STATE_SEND_DATA_REAL:
+            /* Send real measurement data (time data) to master */
+            for(uint16_t m = 0; m < m_index && m < N_MEASUREMENTS; m++) {
+                send_buf_value(m_time_buf[m]);
+            }
+            m_index = 0;
+            device_state.state = S_STATE_IDLE;
+            break;
+
+        case S_STATE_CHANGE_TO_ADC:
+            /* Prepare change to MODE_ADC */
+            disableInterrupts();
+            device_state.mode = M_MODE_ADC;
+            device_state.state = S_STATE_MEASURE_CALIB;
+            init_measurement_adc();
+
+            com_send("OK\r\n");
+            break;
+
+        case S_STATE_CHANGE_TO_TEST:
+            /* Actual test mode */
+            m_index = 0;
+            // 1. Configure TIM1 to max speed of 100ns (or 10ns?) try!
+            init_m_timer_test();
+            ms_tick = 0;
+            // 2. Enable ADC
+            device_state.mode = M_MODE_TEST;
+            device_state.state = S_STATE_READY;
+            init_measurement_adc();
+            // 3. Change m_complete handling for test_mode -> no value storing but checking for calibrated upper and lower tresholds
+            break;
+
         }
-        m_index = 0;
-        device_state.state = S_STATE_IDLE;
-        break;
-        
-      case S_STATE_CHANGE_TO_ADC:
-        /* Prepare change to MODE_ADC */
-        disableInterrupts();
-        init_measurement_adc();
-        
-        com_send("OK\r\n");
-        break;
-              
-      case S_STATE_CHANGE_TO_DIGITAL:
-        /* Prepare change to MODE_DIGITAL */
-        disableInterrupts();
-        init_measurement_digital();
-        
-        com_send("OK\r\n");
-        break;
     }
-  }
 }
 
 uint32_t
@@ -305,6 +315,27 @@ init_GPIOs(void) {
   GPIOD->CR2 |= (uint8_t)GPIO_PIN_5;
 }
 
+static void
+init_m_timer_calib(void) {
+    /* Init timer1 for ADC */
+    // 16000000 / 1280 = 12500
+    // 1 / 12500 = 0.00008
+    // 0.00008 * 1250 = 0.1s (=100ms)
+    TIM1_TimeBaseInit(1280, TIM1_COUNTERMODE_UP, 1250, 0);
+    TIM1_SelectOutputTrigger(TIM1_TRGOSOURCE_UPDATE);
+    TIM1_ClearFlag(TIM1_FLAG_UPDATE);
+}
+
+static void
+init_m_timer_test(void) {
+    /* Init timer1 for TEST mode */
+    // 16000000 / 128 = 125000
+    // 1 / 125000 = 0.000008
+    // 0.000008 * 13 = 0.000104s (=104us)
+    TIM1_TimeBaseInit(128, TIM1_COUNTERMODE_UP, 13, 0);
+    TIM1_SelectOutputTrigger(TIM1_TRGOSOURCE_UPDATE);
+    TIM1_ClearFlag(TIM1_FLAG_UPDATE);
+}
 
 #ifdef USE_FULL_ASSERT
 
