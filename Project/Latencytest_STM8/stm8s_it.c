@@ -50,8 +50,17 @@ extern uint8_t m_ADC_complete;
 extern struct DevState device_state;
 extern uint16_t m_buf[N_CALIB_MEASUREMENTS];	
 extern uint32_t m_time_buf[N_MEASUREMENTS];
-
+extern uint32_t m_time_buf_sw[N_MEASUREMENTS];
 extern uint8_t receivedCommandByte;
+extern uint16_t calibValueStoredUpperThreshold;
+extern uint16_t calibValueStoredLowerThreshold;
+
+uint32_t pixelTimeT1 = 0;
+uint32_t pixelTimeT2 = 0;
+
+uint8_t thresholdUpperReached = 0;
+uint8_t thresholdLowerReached = 0;
+
 /* Private functions ---------------------------------------------------------*/
 /* Public functions ----------------------------------------------------------*/
 
@@ -167,8 +176,8 @@ INTERRUPT_HANDLER(EXTI_PORTB_IRQHandler, 4)
   */
 INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5)
 {
-  /* EXTI PC2 (trigger IN from master) starts measurement (if device is in MODE_DIGITAL, else discard) */
-  if(device_state.mode == M_MODE_DIGITAL) {
+  /* EXTI PC2 (trigger IN from master) starts measurement (if device is in MODE_TEST, else discard) */
+  if(device_state.mode == M_MODE_TEST) {
       trigger_measurement();
   }
 }
@@ -504,22 +513,46 @@ INTERRUPT_HANDLER(I2C_IRQHandler, 19)
   * @retval 
   * None
   */
- INTERRUPT_HANDLER(ADC1_IRQHandler, 22)
- {
+INTERRUPT_HANDLER(ADC1_IRQHandler, 22) {
     /* ADC1 end of conversion */
-    m_buf[m_index] = ADC1_GetConversionValue();
-            
-    if(m_index + 1 >= N_CALIB_MEASUREMENTS) {
+    if(device_state.mode == M_MODE_ADC) {
+        /* Calibration mode */
+        m_buf[m_index] = ADC1_GetConversionValue();
+
+        if(m_index + 1 >= N_CALIB_MEASUREMENTS) {
             ADC1_ITConfig(ADC1_IT_EOCIE, DISABLE);
             /* Calculate median in main() */
             m_ADC_complete = 1;
             m_index = 0;
-    } else {
-      m_index++;
+        } else {
+            m_index++;
+        }
+    } else if(device_state.mode == M_MODE_TEST) {
+        /* Actual test mode */
+        uint16_t value = ADC1_GetConversionValue();
+
+        if(!thresholdUpperReached && !thresholdLowerReached) {
+            
+            if(value <= calibValueStoredUpperThreshold) {
+                /* Pixels starting to switch from black to white */
+                pixelTimeT1 = time_now();
+                thresholdUpperReached = 1;
+            } 
+            if(value <= calibValueStoredLowerThreshold) {
+                /* Pixels are fully white */
+                pixelTimeT2 = time_now();
+                m_time_buf[m_index] = pixelTimeT2 - pixelTimeT1;
+                thresholdLowerReached = 1;
+
+                if(m_index + 1 < N_MEASUREMENTS) {
+                    m_index++;
+                }
+            }
+        }
     }
   
     ADC1_ClearITPendingBit(ADC1_IT_EOC);
- }
+}
 #endif /* (STM8S208) || (STM8S207) || (STM8AF52Ax) || (STM8AF62Ax) */
 
 #if defined (STM8S903) || defined (STM8AF622x)
