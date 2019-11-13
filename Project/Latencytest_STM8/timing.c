@@ -10,9 +10,9 @@ extern struct Measurement m_time_buf[N_MEASUREMENTS];
 
 /* There are two measurement modes:
 	 - ADC
-	 - digital
-	 For white screen recognition, only the digital mode is used (ON/OFF)
-	 For calibration, the adc mode is used, as we require the specific value in digits */
+	 - TEST
+	 For white screen recognition, the TEST mode is used which has a much faster sample time
+	 For calibration, the slower pulsed ADC mode is used */
 void
 init_measurement_adc(void) {
   /* Initializes the ADC component for measuring the attached photodiode circuit */
@@ -42,9 +42,7 @@ init_measurement_adc(void) {
 void
 trigger_measurement(void) {
     /* Enable measurement */
-    //ms_tick = 0;
-
-    if(m_index + 1 < N_MEASUREMENTS) {
+    if(m_index != 0 && m_index + 1 < N_MEASUREMENTS) {
         m_index++;
     }
 
