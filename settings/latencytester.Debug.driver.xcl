@@ -1,0 +1,15 @@
+"-p" 
+
+"C:\Program Files (x86)\IAR Systems\Embedded Workbench 8.3\stm8\config\ddf\iostm8s105c6.ddf" 
+
+"--mcuname" 
+
+"STM8S105C6" 
+
+"--verify_download" 
+
+"--erase_memory" 
+
+
+
+
