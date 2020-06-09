@@ -27,7 +27,7 @@ init_measurement_adc(void) {
          ADC_CHANNEL_MEASURE_IN,
          ADC1_PRESSEL_FCPU_D2, 
          ADC1_EXTTRIG_TIM, 
-         ENABLE, ADC1_ALIGN_RIGHT, 
+         ENABLE, ADC1_ALIGN_LEFT, 
          ADC1_SCHMITTTRIG_CHANNEL0, 
          DISABLE);
     

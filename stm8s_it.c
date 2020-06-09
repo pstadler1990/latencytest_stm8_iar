@@ -154,7 +154,10 @@ INTERRUPT_HANDLER(EXTI_PORTB_IRQHandler, 4)
   */
 INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5)
 {
-    // Removed
+  /* EXTI PC2 (trigger IN from master) starts measurement (if device is in MODE_TEST, else discard) */
+    if(device_state.mode == M_MODE_TEST) {
+        trigger_measurement();
+    }
 }
 
 /**
@@ -164,10 +167,9 @@ INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5)
   */
 INTERRUPT_HANDLER(EXTI_PORTD_IRQHandler, 6)
 {
-    /* EXTI PD4 (trigger IN from master) starts measurement (if device is in MODE_TEST, else discard) */
-    if(device_state.mode == M_MODE_TEST) {
-        trigger_measurement();
-    }
+  /* In order to detect unexpected events during development,
+     it is recommended to set a breakpoint on the following instruction.
+  */
 }
 
 /**

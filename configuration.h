@@ -12,7 +12,7 @@
 /* Number of measurements to store for a single median calculation (ADC mode) */
 #define N_CALIB_MEASUREMENTS	        ((uint8_t)50)
 
-#define THRESHOLD_DIGITS                ((uint32_t)10)
+#define THRESHOLD_DIGITS                ((uint32_t)5000)
 
 /* COM Interface */
 #define	COM_MAX_STRLEN	                ((uint32_t)35)	/* in chars */
@@ -29,13 +29,13 @@
 #define	GPIO_MEASURE_COMPLETE_PIN	GPIO_PIN_2
 
 /* Measurement trigger IN (only valid when in MODE_DIGITAL) */
-#define	GPIO_MEASURE_TRIGGER_PORT	GPIOD
-#define	GPIO_MEASURE_TRIGGER_PIN	GPIO_PIN_4
-#define	EXTI_MEASURE_TRIGGER_PORT	EXTI_PORT_GPIOD
+#define	GPIO_MEASURE_TRIGGER_PORT	GPIOC
+#define	GPIO_MEASURE_TRIGGER_PIN	GPIO_PIN_2
+#define	EXTI_MEASURE_TRIGGER_PORT	EXTI_PORT_GPIOC
 
 /* Debug pin OUT */
 #define	GPIO_DEBUG_PORT 	        GPIOD
-#define	GPIO_DEBUG_PIN	                GPIO_PIN_3
+#define	GPIO_DEBUG_PIN	                GPIO_PIN_4
 
 /* Communication */
 #define	COM_BAUDRATE		        ((uint32_t)115200)
