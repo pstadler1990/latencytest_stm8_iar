@@ -36,12 +36,18 @@ __IO uint8_t receivedCommandByte = 0x01;	         /* Received command from maste
 uint16_t m_buf[N_CALIB_MEASUREMENTS];			/* digit buffer for calibration data */
 struct Measurement m_time_buf[N_MEASUREMENTS];		/* time buffer (ms) for actual measurements */
 
+#ifndef USE_SID
 /* Calibration values for black and white screen */
 __IO uint32_t calibValueStoredUpperThreshold;
 __IO uint32_t calibValueStoredLowerThreshold;
 
 __IO uint8_t thresholdUpperReached = 0;
 __IO uint8_t thresholdLowerReached = 0;
+#else
+__IO uint32_t calibValueStoredThreshold50;
+__IO uint32_t thresholdReached50Timestamp;
+__IO uint8_t thresholdReached50 = 0;
+#endif
 
 char uartSendBuffer[COM_MAX_STRLEN];
 
@@ -64,6 +70,7 @@ main(void) {
 
     init_m_timer_calib();
 
+#ifndef USE_SID
     /* Init timer4 (millisecs counter for measurement timing) */
     // TIM4 master frequency is 16 MHz
     // To generate a tick every 1ms:
@@ -71,6 +78,13 @@ main(void) {
     // 1 / 125000 = 0.000008
     // 0.000008 * 125 = 0.001 (= 1ms)
     TIM2_TimeBaseInit(TIM2_PRESCALER_128, (125 - 1));	// 1ms
+#else
+    // To generate a tick every 1us:
+    // 16000000 / 16 = 1000000 (1 MHz)
+    // 1 MHz ^= 1us
+    TIM2_TimeBaseInit(TIM2_PRESCALER_16, 100 - 1);       // 100us = 10 
+    //TIM2_TimeBaseInit(TIM2_PRESCALER_128, (125 - 1));	// 1ms
+#endif
     TIM2_ClearFlag(TIM2_FLAG_UPDATE);
     TIM2_ITConfig(TIM2_IT_UPDATE, ENABLE);
 
@@ -79,7 +93,7 @@ main(void) {
 
     /* Device always starts with ADC mode */
     device_state.mode = M_MODE_ADC;
-    device_state.state = S_STATE_MEASURE_CALIB;
+    device_state.state = S_STATE_IDLE;
     init_measurement_adc();
 
     TIM2_Cmd(ENABLE);
@@ -93,6 +107,7 @@ main(void) {
         switch(device_state.state) {
 
         case S_STATE_RECEIVED_CMD:
+            UART2_ITConfig(UART2_IT_RXNE_OR, DISABLE);
             /* Received command from master */
             switch(receivedCommandByte) {
 
@@ -139,6 +154,10 @@ main(void) {
 
             UART2_ITConfig(UART2_IT_RXNE_OR, ENABLE);
         break;
+        
+        case S_STATE_IDLE:
+          delay_ms(100);
+          break;
 
         case S_STATE_MEASURE_CALIB:
             /* Gets called whenever the ADC measurements are complete */
@@ -150,6 +169,7 @@ main(void) {
             }
             break;
 
+#ifndef USE_SID
         case S_STATE_DONE:
             if(device_state.mode == M_MODE_TEST) {
                 /* Test mode, single measurement complete */
@@ -159,8 +179,30 @@ main(void) {
                 com_send("MEAS OK\r\n");
             }
             break;
+#else
+        case S_STATE_DONE:
+          if(device_state.mode == M_MODE_TEST) {
+              for(uint16_t m = 0; m < m_index && m < N_MEASUREMENTS; m++) {
+                  com_send("{\r\n");
+                  send_buf_value(m_time_buf[m].timestamp);
+                  send_buf_value(m_time_buf[m].digit);
+                  com_send("}\r\n");
+              }
+              // Send threshold 50 reached timestamp
+              com_send("T\r\n");
+              send_buf_value(thresholdReached50Timestamp);
+              
+              m_index = 0;
+              ms_tick = 0;
+              thresholdReached50 = 0; 
+              device_state.state = S_STATE_READY;
+              UART2_ITConfig(UART2_IT_RXNE_OR, ENABLE);  
+            }
+          break;
+#endif
 
         case S_STATE_STORE_DATA:
+#ifndef USE_SID
             /* Store calibration data for black or white */
             if(device_state.calibMode == C_CALIBMODE_B) {
                 //calibValueStoredUpperThreshold = calibValueStoredBlack + (0.1 * calibValueStoredBlack);
@@ -184,13 +226,27 @@ main(void) {
                 
                 device_state.isCalibrated = 1;
             }
-
+#else
+            device_state.calibMode = C_CALIBMODE_NONE;
+            com_send("BLACK OK\r\n");
+            calibValueStoredThreshold50 = (uint32_t)device_state.last_median;
+            com_send("CALIB OK\r\n");
+  
+            /* Send 50% threshold to the master (for information only) */
+            com_send("{\r\n");
+            send_buf_value(calibValueStoredThreshold50);
+            send_buf_value(calibValueStoredThreshold50);
+            com_send("}\r\n");
+                
+            device_state.isCalibrated = 1;
+#endif
             m_ADC_complete = 0;
             ADC1_ITConfig(ADC1_IT_EOCIE, ENABLE);
-            device_state.state = S_STATE_MEASURE_CALIB;
+            device_state.state = S_STATE_IDLE;
             break;
 
         case S_STATE_SEND_DATA_REAL:
+#ifndef USE_SID
             /* Send real measurement data (time data) to master */
             for(uint16_t m = 0; m < m_index && m < N_MEASUREMENTS; m++) {
                 com_send("{\r\n");
@@ -199,6 +255,7 @@ main(void) {
                 send_buf_value(m_time_buf[m].tWhite);
                 com_send("}\r\n");
             }
+#endif
             m_index = 0;
             device_state.mode = M_MODE_ADC;
             device_state.state = S_STATE_IDLE;

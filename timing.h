@@ -38,9 +38,14 @@ struct DevState {
 };
 
 struct Measurement {
+#ifdef USE_SID
+    uint32_t timestamp;
+    uint16_t digit;
+#else
     uint32_t tTrigger;
     uint32_t tBlack;
     uint32_t tWhite;
+#endif
 };
 
 void init_measurement_adc(void);

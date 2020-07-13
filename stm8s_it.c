@@ -51,11 +51,17 @@ extern struct DevState device_state;
 extern uint16_t m_buf[N_CALIB_MEASUREMENTS];	
 extern struct Measurement m_time_buf[N_MEASUREMENTS];
 extern uint8_t receivedCommandByte;
+
+#ifndef USE_SID
 extern uint32_t calibValueStoredUpperThreshold;
 extern uint32_t calibValueStoredLowerThreshold;
-
 extern uint8_t thresholdUpperReached;
 extern uint8_t thresholdLowerReached;
+#else 
+extern uint32_t calibValueStoredThreshold50;
+extern uint32_t thresholdReached50Timestamp;
+extern uint8_t thresholdReached50;
+#endif
 
 /* Private functions ---------------------------------------------------------*/
 /* Public functions ----------------------------------------------------------*/
@@ -154,10 +160,7 @@ INTERRUPT_HANDLER(EXTI_PORTB_IRQHandler, 4)
   */
 INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5)
 {
-  /* EXTI PC2 (trigger IN from master) starts measurement (if device is in MODE_TEST, else discard) */
-    if(device_state.mode == M_MODE_TEST) {
-        trigger_measurement();
-    }
+    // Removed
 }
 
 /**
@@ -167,9 +170,10 @@ INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5)
   */
 INTERRUPT_HANDLER(EXTI_PORTD_IRQHandler, 6)
 {
-  /* In order to detect unexpected events during development,
-     it is recommended to set a breakpoint on the following instruction.
-  */
+    /* EXTI PD4 (trigger IN from master) starts measurement (if device is in MODE_TEST, else discard) */
+    if(device_state.mode == M_MODE_TEST) {
+        trigger_measurement();
+    }
 }
 
 /**
@@ -294,6 +298,9 @@ INTERRUPT_HANDLER(TIM1_CAP_COM_IRQHandler, 12)
  INTERRUPT_HANDLER(TIM2_UPD_OVF_BRK_IRQHandler, 13)
  {
   ms_tick++;
+  
+  // Debug: Toggle pin, remove
+  //GPIO_DEBUG_PORT->ODR ^= (uint8_t)GPIO_DEBUG_PIN;
   
   TIM2_ClearITPendingBit(TIM2_IT_UPDATE);
  }
@@ -507,7 +514,9 @@ INTERRUPT_HANDLER(ADC1_IRQHandler, 22) {
         /* Actual test mode */
         uint16_t value = ADC1_GetConversionValue();
         uint32_t time = time_now();
-
+        
+        
+#ifndef USE_SID
         if(!thresholdUpperReached || !thresholdLowerReached) {
             
             if(!thresholdUpperReached && (value > calibValueStoredLowerThreshold && value <= calibValueStoredUpperThreshold)) {
@@ -516,7 +525,7 @@ INTERRUPT_HANDLER(ADC1_IRQHandler, 22) {
                 thresholdUpperReached = 1;
                 
                 // Debug: Toggle pin, remove
-                GPIO_DEBUG_PORT->ODR ^= (uint8_t)GPIO_DEBUG_PIN;
+                //GPIO_DEBUG_PORT->ODR ^= (uint8_t)GPIO_DEBUG_PIN;
             } 
             if(!thresholdLowerReached && value <= calibValueStoredLowerThreshold) {
                 /* Pixels are fully white */
@@ -526,9 +535,26 @@ INTERRUPT_HANDLER(ADC1_IRQHandler, 22) {
                 device_state.state = S_STATE_DONE;
                 
                 // Debug: Toggle pin, remove
-                GPIO_DEBUG_PORT->ODR ^= (uint8_t)GPIO_DEBUG_PIN;
+                //GPIO_DEBUG_PORT->ODR ^= (uint8_t)GPIO_DEBUG_PIN;
             }
         }
+#else
+        // USE SID test mode TODO
+        m_time_buf[m_index].timestamp = time;
+        m_time_buf[m_index].digit = value;
+        
+        if(!thresholdReached50 && value <= calibValueStoredThreshold50) {
+          thresholdReached50Timestamp = time;
+          thresholdReached50 = 1;
+        }
+        
+        if(m_index + 1 < N_MEASUREMENTS) {
+          m_index++;
+        } else {
+          device_state.state = S_STATE_DONE;
+          TIM1_Cmd(DISABLE);
+        }
+#endif
     }
   
     ADC1_ClearITPendingBit(ADC1_IT_EOC);

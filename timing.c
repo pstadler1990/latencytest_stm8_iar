@@ -27,7 +27,7 @@ init_measurement_adc(void) {
          ADC_CHANNEL_MEASURE_IN,
          ADC1_PRESSEL_FCPU_D2, 
          ADC1_EXTTRIG_TIM, 
-         ENABLE, ADC1_ALIGN_LEFT, 
+         ENABLE, ADC1_ALIGN_RIGHT, 
          ADC1_SCHMITTTRIG_CHANNEL0, 
          DISABLE);
     
@@ -45,13 +45,19 @@ trigger_measurement(void) {
     //ms_tick = 0;
   
     // Debug: Toggle pin, remove
-    GPIO_DEBUG_PORT->ODR ^= (uint8_t)GPIO_DEBUG_PIN;
+    //GPIO_DEBUG_PORT->ODR ^= (uint8_t)GPIO_DEBUG_PIN;
 
+#ifndef USE_SID
     if(m_index + 1 < N_MEASUREMENTS) {
         m_index++;
     }
-
+    
     m_time_buf[m_index].tTrigger = time_now();
+#else
+    ms_tick = 0;
+    m_index = 0;
+    m_time_buf[0].timestamp = time_now();
+#endif
     
     TIM1_Cmd(ENABLE);
     device_state.state = S_STATE_READY;
