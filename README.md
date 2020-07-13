@@ -9,5 +9,5 @@ There are two releases, depending on the underlying measurement procedure.
 ### VESA
 https://github.com/pstadler1990/latencytest_stm8_iar/releases/tag/V1.0_VESA
 
-### SID
-Use `master` branch.
+### SID (and VESA)
+To use the new version that includes both, SID and VESA, clone the `master` branch.
